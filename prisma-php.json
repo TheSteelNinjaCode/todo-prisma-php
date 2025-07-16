@@ -1,0 +1,19 @@
+{
+  "projectName": "todo-prisma-php",
+  "projectRootPath": "C:\\xampp\\htdocs\\projects\\prisma-php\\posts\\todo-prisma-php",
+  "phpEnvironment": "XAMPP",
+  "phpRootPathExe": "C:\\xampp\\php\\php.exe",
+  "phpGenerateClassPath": "src/Lib/Prisma/Classes",
+  "bsTarget": "http://localhost/projects/prisma-php/posts/todo-prisma-php/",
+  "bsPathRewrite": {
+    "^/": "/projects/prisma-php/posts/todo-prisma-php/"
+  },
+  "backendOnly": false,
+  "swaggerDocs": false,
+  "tailwindcss": true,
+  "websocket": false,
+  "prisma": true,
+  "docker": false,
+  "version": "3.2.3",
+  "excludeFiles": []
+}

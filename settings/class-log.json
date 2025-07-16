@@ -1,0 +1,20 @@
+{
+  "Lib\\PHPX\\PHPX": {
+    "filePath": "Lib\\PHPX\\PHPX.php"
+  },
+  "Lib\\PPIcons\\Delete": {
+    "filePath": "Lib\\PPIcons\\Delete.php"
+  },
+  "Lib\\PPIcons\\LoaderCircle": {
+    "filePath": "Lib\\PPIcons\\LoaderCircle.php"
+  },
+  "Lib\\PPIcons\\Pencil": {
+    "filePath": "Lib\\PPIcons\\Pencil.php"
+  },
+  "Lib\\PPIcons\\Plus": {
+    "filePath": "Lib\\PPIcons\\Plus.php"
+  },
+  "Lib\\PPIcons\\X": {
+    "filePath": "Lib\\PPIcons\\X.php"
+  }
+}
