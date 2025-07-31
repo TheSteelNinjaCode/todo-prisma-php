@@ -38,6 +38,11 @@
     {
       "className": "Lib\\PHPX\\PHPX",
       "filePath": "Lib\\PHPX\\PHPX.php",
+      "importer": "C:\\xampp\\htdocs\\projects\\prisma-php\\posts\\todo-prisma-php\\src\\Lib\\PHPX\\Fragment.php"
+    },
+    {
+      "className": "Lib\\PHPX\\PHPX",
+      "filePath": "Lib\\PHPX\\PHPX.php",
       "importer": "C:\\xampp\\htdocs\\projects\\prisma-php\\posts\\todo-prisma-php\\src\\Lib\\PPIcons\\Delete.php"
     },
     {

@@ -32,4 +32,3 @@ composer.lock
 .pphp/
 caches/
 settings/bs-config.json
-/src/generated/prisma

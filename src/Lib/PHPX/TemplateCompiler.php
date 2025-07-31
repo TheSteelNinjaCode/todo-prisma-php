@@ -408,23 +408,25 @@ class TemplateCompiler
         string $componentName,
         array $incomingProps
     ): string {
-        $mapping       = self::selectComponentMapping($componentName);
-        $instance      = self::initializeComponentInstance($mapping, $incomingProps);
+        $mapping  = self::selectComponentMapping($componentName);
+        $instance = self::initializeComponentInstance($mapping, $incomingProps);
 
         $childHtml = '';
         foreach ($node->childNodes as $c) {
             $childHtml .= self::processNode($c);
         }
 
-        $instance->children = $childHtml;
+        $instance->children = trim($childHtml);
 
-        $baseId   = 's' . base_convert(sprintf('%u', crc32($mapping['className'])), 10, 36);
-        $idx      = self::$componentInstanceCounts[$baseId] ?? 0;
+        $baseId = 's' . base_convert(sprintf('%u', crc32($mapping['className'])), 10, 36);
+        $idx = self::$componentInstanceCounts[$baseId] ?? 0;
         self::$componentInstanceCounts[$baseId] = $idx + 1;
         $sectionId = $idx === 0 ? $baseId : "{$baseId}{$idx}";
 
-        $html     = $instance->render();
-        $fragDom  = self::convertToXml($html);
+        $html = $instance->render();
+        $html = self::preprocessFragmentSyntax($html);
+
+        $fragDom = self::convertToXml($html);
         $root = $fragDom->documentElement;
         foreach ($root->childNodes as $c) {
             if ($c instanceof DOMElement) {
@@ -434,6 +436,14 @@ class TemplateCompiler
         }
 
         $htmlOut = self::innerXml($fragDom);
+        $htmlOut = preg_replace_callback(
+            '/<([a-z0-9-]+)([^>]*)\/>/i',
+            fn($m) => in_array(strtolower($m[1]), self::$selfClosingTags, true)
+                ? $m[0]
+                : "<{$m[1]}{$m[2]}></{$m[1]}>",
+            $htmlOut
+        );
+
         if (
             str_contains($htmlOut, '{{') ||
             self::hasComponentTag($htmlOut) ||
@@ -443,6 +453,14 @@ class TemplateCompiler
         }
 
         return $htmlOut;
+    }
+
+    private static function preprocessFragmentSyntax(string $content): string
+    {
+        $content = preg_replace('/<>/', '<Fragment>', $content);
+        $content = preg_replace('/<\/>/', '</Fragment>', $content);
+
+        return $content;
     }
 
     private static function selectComponentMapping(string $componentName): array
