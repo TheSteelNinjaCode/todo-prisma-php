@@ -12,6 +12,36 @@ $todos = $prisma->todo->findMany([
     ]
 ]);
 
+function searchBy($data)
+{
+    $prisma = Prisma::getInstance();
+    $search = $data->search ?? '';
+    $status = $data->status ?? 'all';
+
+    $where = [];
+
+    if (!empty($search)) {
+        $where['title'] = [
+            'contains' => $search,
+        ];
+    }
+
+    if ($status === 'todo') {
+        $where['completed'] = false;
+    } elseif ($status === 'done') {
+        $where['completed'] = true;
+    }
+
+    $todos = $prisma->todo->findMany([
+        'where' => $where,
+        'orderBy' => [
+            'createdAt' => 'asc',
+        ],
+    ]);
+
+    return $todos;
+}
+
 function createTodo($data)
 {
     $prisma = Prisma::getInstance();
@@ -123,8 +153,8 @@ function toggleCompleted($data)
             <div class="flex gap-2 items-center">
                 <input name="search" type="text" class="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400 transition" placeholder="Search todos..." autocomplete="off" oninput="search = this.value" value="{{ search }}" />
                 <button type="button" class="bg-gray-100 text-gray-500 px-3 py-2 rounded-lg font-semibold hover:bg-gray-200 transition" title="Clear search" onclick="setSearch('')">
-                    <X class="size-5" />
-                    <LoaderCircle class="size-5 animate-spin hidden" />
+                    <X class="size-5" pp-if="!serverSearching" />
+                    <LoaderCircle class="size-5 animate-spin" pp-if="serverSearching" />
                 </button>
             </div>
             <form class="flex gap-2" onsubmit="addTodo">
@@ -135,14 +165,14 @@ function toggleCompleted($data)
             </form>
             <div class="flex justify-center">
                 <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                    <button class="px-3 py-1.5 rounded-md text-sm font-medium transition bg-white text-purple-600 shadow">All</button>
-                    <button class="px-3 py-1.5 rounded-md text-sm font-medium transition text-gray-500 hover:bg-white">Todo</button>
-                    <button class="px-3 py-1.5 rounded-md text-sm font-medium transition text-gray-500 hover:bg-white">Done</button>
+                    <button onclick="searchByStatus('all')" class="px-3 py-1.5 rounded-md text-sm font-medium transition {{ status === 'all' ? 'bg-white text-purple-600 shadow' : 'text-gray-500 hover:bg-white' }}">All</button>
+                    <button onclick="searchByStatus('todo')" class="px-3 py-1.5 rounded-md text-sm font-medium transition {{ status === 'todo' ? 'bg-white text-purple-600 shadow' : 'text-gray-500 hover:bg-white' }}">Todo</button>
+                    <button onclick="searchByStatus('done')" class="px-3 py-1.5 rounded-md text-sm font-medium transition {{ status === 'done' ? 'bg-white text-purple-600 shadow' : 'text-gray-500 hover:bg-white' }}">Done</button>
                 </div>
             </div>
         </div>
         <ul class="space-y-3 h-44 overflow-y-auto">
-            <template pp-for="todo in todos">
+            <template pp-for="todo in filteredTodos">
                 <li class="flex items-center justify-between bg-white rounded-lg shadow p-4 hover:bg-gray-50 transition">
                     <div class="flex items-center">
                         <input type="checkbox" class="mr-3 h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded" checked="{{todo.completed}}" onchange="toggleCompleted(todo)" />
@@ -162,11 +192,11 @@ function toggleCompleted($data)
         </ul>
         <div class="flex justify-between items-center mt-4 text-sm text-gray-400 border-t pt-3">
             <span>
-                Showing <span class="font-bold">{{ todos.length }}</span> of
-                <span class="font-bold">{{ todos.length }}</span>
+                Showing <span class="font-bold">{{ filteredTodos.length }}</span> of
+                <span class="font-bold">{{ filteredTodos.length }}</span>
             </span>
             <span>
-                <span class="font-bold">{{ todos.filter(t => t.completed).length }}/{{ todos.length }}</span>
+                <span class="font-bold">{{ filteredTodos.filter(t => t.completed).length }}/{{ filteredTodos.length }}</span>
                 Task completed
             </span>
         </div>
@@ -179,16 +209,69 @@ function toggleCompleted($data)
     const [todos, setTodos] = pphp.state(jsonTodos);
     const [title, setTitle] = pphp.state('');
     const [search, setSearch] = pphp.state('');
+    const [status, setStatus] = pphp.state('all');
+    const [filteredTodos, setFilteredTodos] = pphp.state([]);
+    const [serverSearching, setServerSearching] = pphp.state(false);
+    let didServerSearch = false;
 
-    pphp.effect(() => {
-        console.log('search updated:', search);
-        if (search.value.trim() === '') {
-            setTodos(jsonTodos);
+    const getFilteredTodos = (all, term, status) => {
+        term = term.trim().toLowerCase();
+        return all.filter(todo =>
+            (term === '' || todo.title.toLowerCase().includes(term)) &&
+            (
+                status === 'all' ||
+                (status === 'todo' && !todo.completed) ||
+                (status === 'done' && todo.completed)
+            )
+        );
+    };
+
+    pphp.effect(async () => {
+        const term = search.value;
+        const currentStatus = status.value;
+
+        didServerSearch = false;
+
+        const localFiltered = getFilteredTodos(todos, term, currentStatus);
+
+        if (term.trim() === '') {
+            setServerSearching(false);
+            setFilteredTodos(localFiltered); // just filter by status
             return;
         }
-        const filtered = todos.filter(todo => todo.title.toLowerCase().includes(search.value.toLowerCase()));
-        setTodos(filtered);
-    }, [search]);
+
+        if (localFiltered.length > 0) {
+            setServerSearching(false);
+            setFilteredTodos(localFiltered);
+            return;
+        }
+
+        // Server fallback
+        if (!didServerSearch) {
+            console.warn('Not found locally, requesting server...');
+            setServerSearching(true);
+            didServerSearch = true;
+
+            const response = await pphp.fetchFunction('searchBy', {
+                search: term.trim().toLowerCase(),
+                status: currentStatus
+            });
+
+            setServerSearching(false);
+
+            if (response && response.response) {
+                setFilteredTodos(response.response);
+                return;
+            }
+
+            setFilteredTodos([]);
+        }
+    }, [search, status]);
+
+    export const searchByStatus = async (value) => {
+        setStatus(value);
+        setFilteredTodos(getFilteredTodos(todos, search.value, value));
+    };
 
     export const addTodo = async (form) => {
         const titleValue = form.data.title;
@@ -206,6 +289,7 @@ function toggleCompleted($data)
         const updated = [...todos, newTodo.response.todo];
         setTodos(updated);
         setTitle('');
+        setFilteredTodos(getFilteredTodos(updated, search.value, status.value));
     }
 
     export const editTodo = async (todo) => {
@@ -234,6 +318,7 @@ function toggleCompleted($data)
         });
 
         setTodos(updated);
+        setFilteredTodos(getFilteredTodos(updated, search.value, status.value));
     }
 
     export const deleteTodo = async (id) => {
@@ -255,6 +340,7 @@ function toggleCompleted($data)
 
         const updated = todos.filter(todo => todo.id !== id);
         setTodos(updated);
+        setFilteredTodos(getFilteredTodos(updated, search.value, status.value));
     }
 
     export const toggleCompleted = async (todo) => {
@@ -273,5 +359,6 @@ function toggleCompleted($data)
         });
 
         setTodos(updated);
+        setFilteredTodos(getFilteredTodos(updated, search.value, status.value));
     }
 </script>
